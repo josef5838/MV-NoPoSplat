@@ -4,12 +4,15 @@ from typing import Literal
 
 import torch
 from torch import nn
+import numpy as np
 
+from .croco.blocks_fast3r import Block
 from .croco.blocks import DecoderBlock
 from .croco.croco import CroCoNet
 from .croco.misc import fill_default_args, freeze_all_params, transpose_to_landscape, is_symmetrized, interleave, \
     make_batch_symmetric
 from .croco.patch_embed import get_patch_embed
+from .croco.pos_embed import get_1d_sincos_pos_embed_from_grid
 from .backbone import Backbone
 from ....geometry.camera_emb import get_intrinsic_embedding
 
@@ -87,6 +90,13 @@ class AsymmetricCroCo(CroCoNet):
         if self.intrinsics_embed_type == 'linear' or self.intrinsics_embed_type == 'token':
             self.intrinsic_encoder = nn.Linear(9, 1024)
 
+        self.register_buffer(
+            "image_idx_emb",
+            torch.from_numpy(
+                get_1d_sincos_pos_embed_from_grid(self.dec_embed_dim, np.arange(1000))
+            ).float(),
+            persistent=False,
+        )
         # self.set_freeze(freeze)
 
     def _set_patch_embed(self, img_size=224, patch_size=16, enc_embed_dim=768, in_chans=3):
@@ -100,9 +110,22 @@ class AsymmetricCroCo(CroCoNet):
         enc_embed_dim = enc_embed_dim + self.intrinsics_embed_decoder_dim
         self.decoder_embed = nn.Linear(enc_embed_dim, dec_embed_dim, bias=True)
         # transformer for the decoder
+        # self.dec_blocks = nn.ModuleList([
+        #     DecoderBlock(dec_embed_dim, dec_num_heads, mlp_ratio=mlp_ratio, qkv_bias=True, norm_layer=norm_layer, norm_mem=norm_im2_in_dec, rope=self.rope)
+        #     for i in range(dec_depth)])
         self.dec_blocks = nn.ModuleList([
-            DecoderBlock(dec_embed_dim, dec_num_heads, mlp_ratio=mlp_ratio, qkv_bias=True, norm_layer=norm_layer, norm_mem=norm_im2_in_dec, rope=self.rope)
-            for i in range(dec_depth)])
+            Block(
+                dim=dec_embed_dim,
+                num_heads=dec_num_heads,
+                mlp_ratio=mlp_ratio,
+                qkv_bias=True,
+                drop=0.0,
+                attn_drop=0.0,
+                norm_layer=norm_layer,
+                attn_implementation="pytorch_naive",
+                attn_bias_for_inference_enabled=True
+            ) for _ in range(dec_depth)
+        ])
         # final norm layer
         self.dec_norm = norm_layer(dec_embed_dim)
 
@@ -171,7 +194,7 @@ class AsymmetricCroCo(CroCoNet):
         B = img1.shape[0]
         # Recover true_shape when available, otherwise assume that the img shape is the true one
         shape1 = view1.get('true_shape', torch.tensor(img1.shape[-2:])[None].repeat(B, 1))
-        shape2 = view2.get('true_shape', torch.tensor(img2.shape[-2:])[None].repeat(B, 1))
+        shape2 = view2.get('true_shape', torch.tensor(img2.shape[-2:])[None].repeat(B, 1)) # B 2
         # warning! maybe the images have different portrait/landscape orientations
 
         intrinsics_embed1 = view1.get('intrinsics_embed', None)
@@ -186,8 +209,47 @@ class AsymmetricCroCo(CroCoNet):
             pos1, pos2 = interleave(pos1, pos2)
 
         return (shape1, shape2), (feat1, feat2), (pos1, pos2)
+    
+    def _decoder_fast3r(self, f1, pos1, f2, pos2):
+
+        B, _ , _ = f1.shape
+        image_ids = []
+        image_ids.extend([0] * f1.shape[1])
+        image_ids.extend([1] * f2.shape[1])
+        image_ids = torch.tensor(image_ids * B).reshape(B, -1).to(f1.device)
+
+        x = torch.cat([f1, f2], dim=1)
+        pos = torch.cat([pos1, pos2], dim=1)
+        final_output_nopo = [(f1, f2)]
+
+        f1 = self.decoder_embed(f1)
+        f2 = self.decoder_embed(f2)
+        final_output_nopo.append((f1, f2))
+
+        final_output = [x]
+
+        # project to decoder dim
+        x = self.decoder_embed(x)
+        num_images = (torch.max(image_ids) + 1).cpu().item()
+        image_idx_emb = self.image_idx_emb[:num_images]
+        image_pos = image_idx_emb[image_ids]
+
+        x += image_pos
+
+        for blk in self.dec_blocks:
+            x = blk(x, pos)
+
+            f1, f2 = x.chunk(2, dim=1)
+            final_output.append(x)
+            final_output_nopo.append((f1, f2))
+
+        del final_output_nopo[1]  # duplicate with final_output[0]
+        final_output_nopo[-1] = tuple(map(self.dec_norm, final_output_nopo[-1]))
+        return zip(*final_output_nopo)
+
 
     def _decoder(self, f1, pos1, f2, pos2, extra_embed1=None, extra_embed2=None):
+
         final_output = [(f1, f2)]  # before projection
 
         if extra_embed1 is not None:
@@ -238,8 +300,8 @@ class AsymmetricCroCo(CroCoNet):
 
         if self.intrinsics_embed_loc == 'encoder' and (self.intrinsics_embed_type == 'token' or self.intrinsics_embed_type == 'linear'):
             intrinsic_embedding = self.intrinsic_encoder(context["intrinsics"].flatten(2))
-            view1['intrinsics_embed'] = intrinsic_embedding[:, 0].unsqueeze(1)
-            view2['intrinsics_embed'] = intrinsic_embedding[:, 1].unsqueeze(1)
+            view1['intrinsics_embed'] = intrinsic_embedding[:, 0].unsqueeze(1) # B V 3 3 -》 B V 9 -> B V 1024
+            view2['intrinsics_embed'] = intrinsic_embedding[:, 1].unsqueeze(1) # B V 1024 -> BxV 1 1024
 
         if symmetrize_batch:
             instance_list_view1, instance_list_view2 = [0 for _ in range(b)], [1 for _ in range(b)]
@@ -254,13 +316,14 @@ class AsymmetricCroCo(CroCoNet):
         else:
             # encode the two images --> B,S,D
             (shape1, shape2), (feat1, feat2), (pos1, pos2) = self._encode_symmetrized(view1, view2, force_asym=True)
-
+        
         if self.intrinsics_embed_loc == 'decoder':
             # FIXME: downsample is hardcoded to 16
             intrinsic_emb = get_intrinsic_embedding(context, degree=self.intrinsics_embed_degree, downsample=16, merge_hw=True)
-            dec1, dec2 = self._decoder(feat1, pos1, feat2, pos2, intrinsic_emb[:, 0], intrinsic_emb[:, 1])
+            dec1, dec2 = self._decoder_fast3r(feat1, pos1, feat2, pos2, intrinsic_emb[:, 0], intrinsic_emb[:, 1])
         else:
-            dec1, dec2 = self._decoder(feat1, pos1, feat2, pos2)
+            # 12 blocks
+            dec1, dec2 = self._decoder_fast3r(feat1, pos1, feat2, pos2)
 
         if self.intrinsics_embed_loc == 'encoder' and self.intrinsics_embed_type == 'token':
             dec1, dec2 = list(dec1), list(dec2)

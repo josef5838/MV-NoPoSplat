@@ -6,6 +6,7 @@ from .backbone_croco_multiview import AsymmetricCroCoMulti
 from .backbone_dino import BackboneDino, BackboneDinoCfg
 from .backbone_resnet import BackboneResnet, BackboneResnetCfg
 from .backbone_croco import AsymmetricCroCo, BackboneCrocoCfg
+# from .backbone_fast3r import Fast3R
 
 BACKBONES: dict[str, Backbone[Any]] = {
     "resnet": BackboneResnet,

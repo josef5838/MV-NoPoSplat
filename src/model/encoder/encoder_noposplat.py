@@ -147,6 +147,7 @@ class EncoderNoPoSplat(Encoder[EncoderNoPoSplatCfg]):
 
         # Encode the context images.
         dec1, dec2, shape1, shape2, view1, view2 = self.backbone(context, return_views=True)
+        
         with torch.cuda.amp.autocast(enabled=False):
             res1 = self._downstream_head(1, [tok.float() for tok in dec1], shape1)
             res2 = self._downstream_head(2, [tok.float() for tok in dec2], shape2)

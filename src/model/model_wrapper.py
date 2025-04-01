@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Protocol, runtime_checkable, Any
 
-import moviepy.editor as mpy
+# import moviepy.editor as mpy
 import torch
 import wandb
 from einops import pack, rearrange, repeat
@@ -613,18 +613,18 @@ class ModelWrapper(LightningModule):
         }
 
         # Since the PyTorch Lightning doesn't support video logging, log to wandb directly.
-        try:
-            wandb.log(visualizations)
-        except Exception:
-            assert isinstance(self.logger, LocalLogger)
-            for key, value in visualizations.items():
-                tensor = value._prepare_video(value.data)
-                clip = mpy.ImageSequenceClip(list(tensor), fps=value._fps)
-                dir = LOG_PATH / key
-                dir.mkdir(exist_ok=True, parents=True)
-                clip.write_videofile(
-                    str(dir / f"{self.global_step:0>6}.mp4"), logger=None
-                )
+        # try:
+        #     wandb.log(visualizations)
+        # except Exception:
+        #     assert isinstance(self.logger, LocalLogger)
+        #     for key, value in visualizations.items():
+        #         tensor = value._prepare_video(value.data)
+        #         clip = mpy.ImageSequenceClip(list(tensor), fps=value._fps)
+        #         dir = LOG_PATH / key
+        #         dir.mkdir(exist_ok=True, parents=True)
+        #         clip.write_videofile(
+        #             str(dir / f"{self.global_step:0>6}.mp4"), logger=None
+        #         )
 
     def print_preview_metrics(self, metrics: dict[str, float | Tensor], methods: list[str] | None = None, overlap_tag: str | None = None) -> None:
         if getattr(self, "running_metrics", None) is None:

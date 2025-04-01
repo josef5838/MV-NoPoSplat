@@ -7,11 +7,19 @@ from torch import Tensor
 
 Real = Union[float, int]
 
+# Vector = Union[
+#     Real,
+#     Iterable[Real],
+#     Shaped[Tensor, "3"],
+#     Shaped[Tensor, "batch 3"],
+# ]
 Vector = Union[
     Real,
     Iterable[Real],
     Shaped[Tensor, "3"],
     Shaped[Tensor, "batch 3"],
+    Float[Tensor, "2"],
+    Float[Tensor, "batch 2"]
 ]
 
 

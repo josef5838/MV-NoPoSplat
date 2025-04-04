@@ -3,7 +3,7 @@
 defaults:
   - /dataset@_group_.re10k: re10k
   - override /model/encoder: noposplat
-  - override /model/encoder/backbone: fast3r
+  - override /model/encoder/backbone: croco
   - override /loss: [mse, lpips]
 
 wandb:
@@ -12,6 +12,8 @@ wandb:
 
 model:
   encoder:
+    backbone:
+      name: fast3r
     gs_params_head_type: dpt_gs
     pose_free: true
     intrinsics_embed_loc: encoder

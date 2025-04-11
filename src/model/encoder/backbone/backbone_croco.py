@@ -188,6 +188,7 @@ class AsymmetricCroCo(CroCoNet):
         return (shape1, shape2), (feat1, feat2), (pos1, pos2)
 
     def _decoder(self, f1, pos1, f2, pos2, extra_embed1=None, extra_embed2=None):
+        #f1/f2: [1, 257, 1024]
         final_output = [(f1, f2)]  # before projection
 
         if extra_embed1 is not None:
@@ -196,7 +197,7 @@ class AsymmetricCroCo(CroCoNet):
             f2 = torch.cat((f2, extra_embed2), dim=-1)
 
         # project to decoder dim
-        f1 = self.decoder_embed(f1)
+        f1 = self.decoder_embed(f1) #[1, 257, 768]
         f2 = self.decoder_embed(f2)
 
         final_output.append((f1, f2))
@@ -206,8 +207,8 @@ class AsymmetricCroCo(CroCoNet):
             # img2 side
             f2, _ = blk2(*final_output[-1][::-1], pos2, pos1)
             # store the result
-            final_output.append((f1, f2))
-
+            final_output.append((f1, f2)) #f1/f2: [1, 257, 768]
+            
         # normalize last output
         del final_output[1]  # duplicate with final_output[0]
         final_output[-1] = tuple(map(self.dec_norm, final_output[-1]))

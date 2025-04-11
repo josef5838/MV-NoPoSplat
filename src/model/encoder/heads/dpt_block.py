@@ -423,6 +423,7 @@ class DPTOutputAdapter(nn.Module):
         x = []
         x.append(encoder_tokens[:, :])
         x = torch.cat(x, dim=-1)
+        # print(x.shape)
         return x
 
     def forward(self, encoder_tokens: List[torch.Tensor], image_size):

@@ -134,7 +134,6 @@ class Attention(nn.Module):
 
     def forward(self, x, xpos):
         B, N, C = x.shape
-
         qkv = (
             self.qkv(x)
             .reshape(B, N, 3, self.num_heads, C // self.num_heads)
@@ -166,8 +165,11 @@ class Attention(nn.Module):
             if dtype == torch.float32:  # if input was FP32, cast back to FP32
                 x = x.to(torch.float32)
             x = (x @ v).transpose(1, 2).reshape(B, N, C)
+            # print("x 1 is: ", x)
             x = self.proj(x)
-            x = self.proj_drop(x)  
+            # print("x 2 is: ", x)
+            x = self.proj_drop(x)
+            # print("x 3 is: ", x)
         # elif self.attn_implementation == "flash_attention":
         #     with torch.nn.attention.sdpa_kernel(SDPBackend.FLASH_ATTENTION):
         #         dtype = k.dtype
@@ -234,6 +236,10 @@ class Block(nn.Module):
         )
 
     def forward(self, x, xpos):
+        # print("xpos is : ", xpos)
+        # print("self.norm1(x) is : ", self.norm1(x))
+        # print("self.attn(self.norm1(x), xpos) is: ",self.attn(self.norm1(x), xpos))
+        # print("self.drop_path(self.attn(self.norm1(x), xpos)) is: ", self.drop_path(self.attn(self.norm1(x), xpos)))
         x = x + self.drop_path(self.attn(self.norm1(x), xpos))
         x = x + self.drop_path(self.mlp(self.norm2(x)))
         return x

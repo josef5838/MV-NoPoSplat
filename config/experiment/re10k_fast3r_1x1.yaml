@@ -17,10 +17,12 @@ model:
     gs_params_head_type: dpt_gs
     pose_free: true
     intrinsics_embed_loc: encoder
-    intrinsics_embed_type: token
-    pretrained_weights: './pretrained_weights/MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric.pth'
+    intrinsics_embed_type: None
+    pretrained_weights: './pretrained_weights2/Fast3R_MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric.pth'
+
   decoder:
     make_scale_invariant: true
+  
 
 dataset:
   re10k:

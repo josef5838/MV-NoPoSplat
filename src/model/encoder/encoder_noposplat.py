@@ -45,8 +45,8 @@ class EncoderNoPoSplatCfg:
     gaussians_per_pixel: int
     num_surfaces: int
     gs_params_head_type: str
-    input_mean: tuple[float, float, float] = (0.5, 0.5, 0.5)
-    input_std: tuple[float, float, float] = (0.5, 0.5, 0.5)
+    input_mean: tuple[float, float, float] = (0.485, 0.456, 0.406)
+    input_std: tuple[float, float, float] = (0.229, 0.224, 0.225)
     pretrained_weights: str = ""
     pose_free: bool = True
 
@@ -133,6 +133,7 @@ class EncoderNoPoSplat(Encoder[EncoderNoPoSplatCfg]):
     def _downstream_head(self, head_num, decout, img_shape, ray_embedding=None):
         B, S, D = decout[-1].shape
         # img_shape = tuple(map(int, img_shape))
+        # 25 layer; [1, 256, 1024]
         head = getattr(self, f'head{head_num}')
         return head(decout, img_shape, ray_embedding=ray_embedding)
 
@@ -149,7 +150,10 @@ class EncoderNoPoSplat(Encoder[EncoderNoPoSplatCfg]):
         dec1, dec2, shape1, shape2, view1, view2 = self.backbone(context, return_views=True)
         
         with torch.cuda.amp.autocast(enabled=False):
+            # print("enter:")
             res1 = self._downstream_head(1, [tok.float() for tok in dec1], shape1)
+            # print("res1 is: ", res1)
+            # print("res1[pts3d]: ", res1['pts3d'])
             res2 = self._downstream_head(2, [tok.float() for tok in dec2], shape2)
 
             # for the 3DGS heads
@@ -162,7 +166,9 @@ class EncoderNoPoSplat(Encoder[EncoderNoPoSplatCfg]):
                 GS_res2 = self.gaussian_param_head2([tok.float() for tok in dec2], shape2[0].cpu().tolist())
                 GS_res2 = rearrange(GS_res2, "b d h w -> b (h w) d")
             elif self.gs_params_head_type == 'dpt_gs':
+                # print(1111)
                 GS_res1 = self.gaussian_param_head([tok.float() for tok in dec1], res1['pts3d'].permute(0, 3, 1, 2), view1['img'][:, :3], shape1[0].cpu().tolist())
+                # print("GS_res1: ",GS_res1)
                 GS_res1 = rearrange(GS_res1, "b d h w -> b (h w) d")
                 GS_res2 = self.gaussian_param_head2([tok.float() for tok in dec2], res2['pts3d'].permute(0, 3, 1, 2), view2['img'][:, :3], shape2[0].cpu().tolist())
                 GS_res2 = rearrange(GS_res2, "b d h w -> b (h w) d")

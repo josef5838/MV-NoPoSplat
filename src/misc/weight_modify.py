@@ -188,10 +188,12 @@ def checkpoint_filter_fn(
     prefix = 'backbone.'
     out_dict = {prefix + k if 'downstream_head' not in k else k: v for k, v in out_dict.items()}
 
-    # # remove the conf head weights
+    # remove the conf head weights
+    # if 'downstream_head' 
     out_dict['downstream_head1.dpt.head.4.weight'] = out_dict['downstream_head1.dpt.head.4.weight'][0:3]
     out_dict['downstream_head1.dpt.head.4.bias'] = out_dict['downstream_head1.dpt.head.4.bias'][0:3]
     out_dict['downstream_head2.dpt.head.4.weight'] = out_dict['downstream_head2.dpt.head.4.weight'][0:3]
     out_dict['downstream_head2.dpt.head.4.bias'] = out_dict['downstream_head2.dpt.head.4.bias'][0:3]
 
     return out_dict
+

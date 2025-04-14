@@ -18,7 +18,7 @@ model:
     pose_free: true
     intrinsics_embed_loc: encoder
     intrinsics_embed_type: token
-    pretrained_weights: './pretrained_weights/MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric.pth'
+    pretrained_weights: './pretrained_weights/Fast3R_MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric.pth'
   decoder:
     make_scale_invariant: true
 
@@ -28,13 +28,13 @@ dataset:
       warm_up_steps: 150_000
 
 optimizer:
-  lr: 1e-4
+  lr: 1e-5
   warm_up_steps: 2000
   backbone_lr_multiplier: 0.1
 
 data_loader:
   train:
-    batch_size: 1
+    batch_size: 2
     num_workers: 1
   test:
     num_workers: 1

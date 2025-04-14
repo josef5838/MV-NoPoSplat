@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Protocol, runtime_checkable, Any
 
-# import moviepy.editor as mpy
+import moviepy.editor as mpy
 import torch
 import wandb
 from einops import pack, rearrange, repeat
@@ -608,11 +608,11 @@ class ModelWrapper(LightningModule):
         video = (video.clip(min=0, max=1) * 255).type(torch.uint8).cpu().numpy()
         if loop_reverse:
             video = pack([video, video[::-1][1:-1]], "* c h w")[0]
-        visualizations = {
-            f"video/{name}": wandb.Video(video[None], fps=30, format="mp4")
-        }
+        # visualizations = {
+        #     f"video/{name}": wandb.Video(video[None], fps=30, format="mp4")
+        # }
 
-        # Since the PyTorch Lightning doesn't support video logging, log to wandb directly.
+        # # Since the PyTorch Lightning doesn't support video logging, log to wandb directly.
         # try:
         #     wandb.log(visualizations)
         # except Exception:

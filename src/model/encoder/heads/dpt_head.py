@@ -42,7 +42,9 @@ class DPTOutputAdapter_fix(DPTOutputAdapter):
         N_W = W // (self.stride_level * self.P_W)
 
         # Hook decoder onto 4 layers from specified ViT layers
+        # hooks: [0, 12, 18, 24]
         layers = [encoder_tokens[hook] for hook in self.hooks]
+        # print("layer is : ", layers)
 
         # Extract only task-relevant tokens and ignore global tokens.
         layers = [self.adapt_tokens(l) for l in layers]
@@ -66,7 +68,6 @@ class DPTOutputAdapter_fix(DPTOutputAdapter):
 
         # Output head
         out = self.head(path_1)
-
         return out
 
 
@@ -88,6 +89,7 @@ class PixelwiseTaskWithDPT(nn.Module):
         if hooks_idx is not None:
             dpt_args.update(hooks=hooks_idx)
         self.dpt = DPTOutputAdapter_fix(**dpt_args)
+   
         dpt_init_args = {} if dim_tokens is None else {'dim_tokens_enc': dim_tokens}
         self.dpt.init(**dpt_init_args)
 

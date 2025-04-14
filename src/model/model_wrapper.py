@@ -608,6 +608,7 @@ class ModelWrapper(LightningModule):
         video = (video.clip(min=0, max=1) * 255).type(torch.uint8).cpu().numpy()
         if loop_reverse:
             video = pack([video, video[::-1][1:-1]], "* c h w")[0]
+            
         # visualizations = {
         #     f"video/{name}": wandb.Video(video[None], fps=30, format="mp4")
         # }

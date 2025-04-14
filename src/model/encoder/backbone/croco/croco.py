@@ -90,7 +90,7 @@ class CroCoNet(nn.Module):
         self.mask_generator = RandomMask(num_patches, mask_ratio)
         
     def _set_mask_token(self, dec_embed_dim):
-        self.mask_token = nn.Parameter(torch.zeros(1, 1, dec_embed_dim))
+        self.mask_token = nn.Parameter(torch.zeros(1, 1, 768))
         
     def _set_decoder(self, enc_embed_dim, dec_embed_dim, dec_num_heads, dec_depth, mlp_ratio, norm_layer, norm_im2_in_dec):
         self.dec_depth = dec_depth

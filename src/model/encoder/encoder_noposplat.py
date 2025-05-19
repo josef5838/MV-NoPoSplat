@@ -82,6 +82,22 @@ class EncoderNoPoSplat(Encoder[EncoderNoPoSplatCfg]):
         self.set_center_head(output_mode='pts3d', head_type='dpt', landscape_only=True,
                            depth_mode=('exp', -inf, inf), conf_mode=None,)
         self.set_gs_params_head(cfg, cfg.gs_params_head_type)
+    
+    # def load_state_dict(self, ckpt, **kw):
+    #     print("loading state dict !!!!!!")
+    #     new_ckpt = dict(ckpt)
+    #     # set all weights for backbone.dec_blocks.15 to random
+    #     for key, value in ckpt.items():
+    #         if key.startswith('backbone.dec_blocks.15'):
+    #             new_ckpt[key] = torch.randn_like(value)
+    #             print(f"set {key} to random")
+        
+    #     # if not any(k.startswith('dec_blocks2') for k in ckpt):
+    #     #     for key, value in ckpt.items():
+    #     #         if key.startswith('dec_blocks'):
+    #     #             new_ckpt[key.replace('dec_blocks', 'dec_blocks2')] = value
+    #     return super().load_state_dict(new_ckpt, **kw)
+
 
     def set_center_head(self, output_mode, head_type, landscape_only, depth_mode, conf_mode):
         self.backbone.depth_mode = depth_mode

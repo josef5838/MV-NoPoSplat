@@ -23,7 +23,7 @@ inf = float('inf')
 croco_params = {
     'ViTLarge_BaseDecoder': {
         'enc_depth': 24,
-        'dec_depth': 15,
+        'dec_depth': 24,
         'enc_embed_dim': 1024,
         'dec_embed_dim': 1024,
         'enc_num_heads': 16,
@@ -33,21 +33,21 @@ croco_params = {
     },
 }
 
-default_dust3r_params = {
-    'enc_depth': 24,
-    'dec_depth': 12,
-    'enc_embed_dim': 1024,
-    'dec_embed_dim': 768,
-    'enc_num_heads': 16,
-    'dec_num_heads': 12,
-    'pos_embed': 'RoPE100',
-    'patch_embed_cls': 'PatchEmbedDust3R',
-    'img_size': (512, 512),
-    'head_type': 'dpt',
-    'output_mode': 'pts3d',
-    'depth_mode': ('exp', -inf, inf),
-    'conf_mode': ('exp', 1, inf)
-}
+# default_dust3r_params = {
+#     'enc_depth': 24,
+#     'dec_depth': 12,
+#     'enc_embed_dim': 1024,
+#     'dec_embed_dim': 768,
+#     'enc_num_heads': 16,
+#     'dec_num_heads': 12,
+#     'pos_embed': 'RoPE100',
+#     'patch_embed_cls': 'PatchEmbedDust3R',
+#     'img_size': (512, 512),
+#     'head_type': 'dpt',
+#     'output_mode': 'pts3d',
+#     'depth_mode': ('exp', -inf, inf),
+#     'conf_mode': ('exp', 1, inf)
+# }
 
 
 @dataclass
@@ -137,10 +137,16 @@ class BackboneFast3r(CroCoNet):
     def load_state_dict(self, ckpt, **kw):
         # duplicate all weights for the second decoder if not present
         new_ckpt = dict(ckpt)
-        if not any(k.startswith('dec_blocks2') for k in ckpt):
-            for key, value in ckpt.items():
-                if key.startswith('dec_blocks'):
-                    new_ckpt[key.replace('dec_blocks', 'dec_blocks2')] = value
+        # set all weights for backbone.dec_blocks.15 to random
+        for key, value in ckpt.items():
+            if key.startswith('backbone.dec_blocks.15'):
+                new_ckpt[key] = torch.randn_like(value)
+                print(f"set {key} to random")
+        
+        # if not any(k.startswith('dec_blocks2') for k in ckpt):
+        #     for key, value in ckpt.items():
+        #         if key.startswith('dec_blocks'):
+        #             new_ckpt[key.replace('dec_blocks', 'dec_blocks2')] = value
         return super().load_state_dict(new_ckpt, **kw)
 
     def set_freeze(self, freeze):  # this is for use by downstream models
@@ -254,6 +260,44 @@ class BackboneFast3r(CroCoNet):
 
             f1, f2 = x.chunk(2, dim=1) #f1/f2: [1, 257, 768]
             final_output_nopo.append((f1, f2))
+        
+        # x0 = final_output[15]    # output of block 15
+        # # …and forward it *only* through block 16
+        # x16 = self.dec_blocks[15](x0, pos)
+        # activations = {}
+        # def save_act(name):
+        #     def hook(m, inp, out):
+        #         act = out if isinstance(out, torch.Tensor) else out[0]
+        #         activations[name] = {
+        #             "min": act.min().item(),
+        #             "max": act.max().item(),
+        #             "has_nan": torch.isnan(act).any().item()
+        #         }
+        #     return hook
+
+        # blk = self.dec_blocks[15]
+        # # Attach hooks to key sub‐layers
+        # # 1) Attention branch
+        # blk.norm1.register_forward_hook(save_act("norm1_out"))       # after LayerNorm
+        # blk.attn.register_forward_hook(save_act("attn_out"))         # after Attention
+
+        # # 2) Post-attention DropPath
+        # blk.drop_path.register_forward_hook(save_act("drop_path_attn"))
+
+        # # 3) MLP branch
+        # blk.norm2.register_forward_hook(save_act("norm2_out"))       # after second LayerNorm
+        # blk.mlp.fc1.register_forward_hook(save_act("mlp_fc1_out"))   # after first linear
+        # blk.mlp.act.register_forward_hook(save_act("mlp_act_out"))   # after activation
+        # blk.mlp.fc2.register_forward_hook(save_act("mlp_fc2_out"))   # after second linear
+        # blk.mlp.drop2.register_forward_hook(save_act("mlp_drop2"))   # after final dropout
+
+        # import pdb; pdb.set_trace()
+        # # Run the block once
+        # _ = blk(x0, pos)
+        # import json
+        # print(json.dumps(activations, indent=2))
+
+        
 
         del final_output_nopo[1]  # duplicate with final_output[0]
         final_output_nopo[-1] = tuple(map(self.dec_norm, final_output_nopo[-1]))

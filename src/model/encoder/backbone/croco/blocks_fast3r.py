@@ -141,6 +141,8 @@ class Attention(nn.Module):
         )
         q, k, v = [qkv[:, :, i] for i in range(3)]
         # q,k,v = qkv.unbind(2)  # make torchscript happy (cannot use tensor as tuple)
+        # inside Attention.forward, just before computing `attn`:
+        
 
         if self.rope is not None:
             with torch.autocast(device_type=next(self.parameters()).device.type, dtype=torch.float32):  # FIXME: for some reason Lightning didn't pick up torch.cuda.amp.custom_fwd when using bf16-true
@@ -159,8 +161,24 @@ class Attention(nn.Module):
             assert self.is_causal is False, "is_causal not supported for pytorch_naive implementation of scaled dot product attention"
             dtype = k.dtype
             with torch.autocast("cuda", dtype=torch.float16):
-                x = (q @ k.transpose(-2, -1)) * scale
-                x = x.softmax(dim=-1)
+                scores = (q * self.scale) @ k.transpose(-2,-1)
+
+                # scores = (q @ k.transpose(-2, -1)) * self.scale
+                # print("scores min/max before softmax:", scores.min().item(), scores.max().item())
+                if torch.isinf(scores.max()) or torch.isinf(scores.min()):
+                    print("This means the data type is not large enough to hold the values")
+                    import pdb; pdb.set_trace()
+                if torch.isnan(q).any() or torch.isinf(q).any():
+                    print("NaN/Inf in q:", torch.isnan(q).sum(), torch.isinf(q).sum())
+                    
+                if torch.isnan(k).any() or torch.isinf(k).any():
+                    print("NaN/Inf in k:", torch.isnan(k).sum(), torch.isinf(k).sum())
+                    pdb.set_trace()
+                # Optionally clamp to avoid overflow:
+                # scores = scores.clamp(-1e2, 1e2)
+                x = scores.softmax(dim=-1)
+                # x = (q @ k.transpose(-2, -1)) * scale
+                # x = x.softmax(dim=-1)
                 x = self.attn_drop(x)
             if dtype == torch.float32:  # if input was FP32, cast back to FP32
                 x = x.to(torch.float32)

@@ -18,7 +18,7 @@ model:
     pose_free: true
     intrinsics_embed_loc: encoder
     intrinsics_embed_type: None
-    pretrained_weights: './pretrained_weights2/Fast3R_MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric.pth'
+    pretrained_weights: './pretrained_weights/Fast3R_MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric.pth'
 
   decoder:
     make_scale_invariant: true

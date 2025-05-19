@@ -14,8 +14,12 @@ def vis_depth_map(result):
     far = result.view(-1)[:16_000_000].quantile(0.99).log()
     try:
         near = result[result > 0][:16_000_000].quantile(0.01).log()
-    except:
-        print("No valid depth values found.")
+    except Exception as e:
+        print("Failed to compute near and therefore the depth:", repr(e))
+        print("n_nan, n_inf, percent of nan:", torch.isnan(result).sum().item(), torch.isinf(result).sum().item(), torch.isnan(result).sum().item() / result.numel())
+        print("min, max:", result.min().item(), result.max().item())
+        print("######")
+        # print("No valid depth values found.")
         near = torch.zeros_like(far)
     result = result.log()
     result = 1 - (result - near) / (far - near)

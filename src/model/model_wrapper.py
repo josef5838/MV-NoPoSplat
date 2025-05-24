@@ -177,6 +177,9 @@ class ModelWrapper(LightningModule):
         total_loss = 0
         for loss_fn in self.losses:
             loss = loss_fn.forward(output, batch, gaussians, self.global_step)
+            if torch.isnan(loss):
+                print(f"[NaN] in loss function: {loss_fn.name}")
+                continue
             self.log(f"loss/{loss_fn.name}", loss)
             total_loss = total_loss + loss
 
@@ -189,6 +192,9 @@ class ModelWrapper(LightningModule):
                                                     visualization_dump['means'][:, 1].squeeze(-2),
                                                     pseudo_gt1['conf'], pseudo_gt2['conf'], disable_view1=False) * 0.1
             self.log("loss/distillation_loss", distillation_loss)
+            if torch.isnan(distillation_loss):
+                print("[NaN] in distillation_loss!")
+            
             total_loss = total_loss + distillation_loss
 
         self.log("loss/total", total_loss)

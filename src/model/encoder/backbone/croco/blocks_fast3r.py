@@ -28,6 +28,7 @@ import torch
 import torch.nn as nn
 from torch.nn.functional import scaled_dot_product_attention
 # from torch.nn.attention import SDPBackend
+from torch.backends.cuda import SDPBackend
 
 
 def _ntuple(n):
@@ -109,7 +110,7 @@ class Mlp(nn.Module):
 class Attention(nn.Module):
     def __init__(
         self, dim, rope=None, num_heads=8, qkv_bias=False, attn_drop=0.0, proj_drop=0.0,
-        attn_mask=None, is_causal=False, attn_implementation="pytorch_naive",
+        attn_mask=None, is_causal=False, attn_implementation="flash_attention",
         attn_bias_for_inference_enabled=False,
     ):
         super().__init__()
@@ -188,26 +189,27 @@ class Attention(nn.Module):
             # print("x 2 is: ", x)
             x = self.proj_drop(x)
             # print("x 3 is: ", x)
-        # elif self.attn_implementation == "flash_attention":
-        #     with torch.nn.attention.sdpa_kernel(SDPBackend.FLASH_ATTENTION):
-        #         dtype = k.dtype
-        #         with torch.autocast("cuda", dtype=torch.bfloat16):
-        #             x = scaled_dot_product_attention(q, k, v, attn_mask=self.attn_mask, dropout_p=self.dropout_p, is_causal=self.is_causal, scale=scale)
-        #         if dtype == torch.float32:  # if input was FP32, cast back to FP32
-        #             x = x.to(torch.float32)
-        #         x = x.transpose(1, 2).reshape(B, N, C)
-        #         x = self.proj(x)
-        #         x = self.proj_drop(x)
-        # elif self.attn_implementation == "pytorch_auto":
-        #     with torch.nn.attention.sdpa_kernel([SDPBackend.EFFICIENT_ATTENTION,]):
-        #         dtype = k.dtype
-        #         with torch.autocast("cuda", dtype=torch.bfloat16):
-        #             x = scaled_dot_product_attention(q, k, v, attn_mask=self.attn_mask, dropout_p=self.dropout_p, is_causal=self.is_causal, scale=scale)
-        #         if dtype == torch.float32:  # if input was FP32, cast back to FP32
-        #             x = x.to(torch.float32)
-        #         x = x.transpose(1, 2).reshape(B, N, C)
-        #         x = self.proj(x)
-        #         x = self.proj_drop(x)
+        elif self.attn_implementation == "flash_attention":
+            with torch.backends.cuda.sdp_kernel(enable_flash=True, enable_math=False, enable_mem_efficient=False):
+                dtype = k.dtype
+                # dtype_1 = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+                with torch.autocast("cuda", dtype=torch.float16):
+                    x = scaled_dot_product_attention(q, k, v, attn_mask=self.attn_mask, dropout_p=self.dropout_p, is_causal=self.is_causal, scale=scale)
+                if dtype == torch.float32:  # if input was FP32, cast back to FP32
+                    x = x.to(torch.float32)
+                x = x.transpose(1, 2).reshape(B, N, C)
+                x = self.proj(x)
+                x = self.proj_drop(x)
+        elif self.attn_implementation == "pytorch_auto":
+            with torch.nn.attention.sdpa_kernel([SDPBackend.EFFICIENT_ATTENTION,]):
+                dtype = k.dtype
+                with torch.autocast("cuda", dtype=torch.bfloat16):
+                    x = scaled_dot_product_attention(q, k, v, attn_mask=self.attn_mask, dropout_p=self.dropout_p, is_causal=self.is_causal, scale=scale)
+                if dtype == torch.float32:  # if input was FP32, cast back to FP32
+                    x = x.to(torch.float32)
+                x = x.transpose(1, 2).reshape(B, N, C)
+                x = self.proj(x)
+                x = self.proj_drop(x)
         else:
             raise ValueError(f"Unknown attn_implementation: {self.attn_implementation}")
 
@@ -227,7 +229,7 @@ class Block(nn.Module):
         act_layer=nn.GELU,
         norm_layer=nn.LayerNorm,
         rope=None,
-        attn_implementation="pytorch_naive",
+        attn_implementation="flash_attention",
         attn_bias_for_inference_enabled=False,
     ):
         super().__init__()
@@ -265,7 +267,7 @@ class Block(nn.Module):
 
 class CrossAttention(nn.Module):
     def __init__(
-        self, dim, rope=None, num_heads=8, qkv_bias=False, attn_drop=0.0, proj_drop=0.0, attn_mask=None, is_causal=False, attn_implementation="pytorch_naive"
+        self, dim, rope=None, num_heads=8, qkv_bias=False, attn_drop=0.0, proj_drop=0.0, attn_mask=None, is_causal=False, attn_implementation="flash_attention"
     ):
         super().__init__()
         self.num_heads = num_heads
@@ -354,7 +356,7 @@ class DecoderBlock(nn.Module):
         norm_layer=nn.LayerNorm,
         norm_mem=True,
         rope=None,
-        attn_implementation="pytorch_naive",
+        attn_implementation="flash_attention",
     ):
         super().__init__()
         self.norm1 = norm_layer(dim)

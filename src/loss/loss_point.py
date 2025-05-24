@@ -242,6 +242,9 @@ class Regr3D(nn.Module):
         if self.norm_mode and not self.gt_scale:
             gt_pts1, gt_pts2 = normalize_pointcloud(gt_pts1, gt_pts2, self.norm_mode, valid1, valid2)
 
+        if valid1.sum() == 0 or valid2.sum() == 0:
+            print("[Warning] No valid distillation points.")
+
         loss1 = torch.norm(pr_pts1 - gt_pts1, dim=-1)
         loss2 = torch.norm(pr_pts2 - gt_pts2, dim=-1)
         # loss1 = (pr_pts1[..., -1] - gt_pts1[..., -1]).abs()
@@ -249,6 +252,9 @@ class Regr3D(nn.Module):
 
         loss1, loss2 = loss1[valid1], loss2[valid2]
 
+        if loss1.numel() == 0 or loss2.numel() == 0:
+            print("[Warning] Loss tensors empty after masking.")
+        
         if disable_view1:
             return loss2.mean()
         return loss1.mean() + loss2.mean()

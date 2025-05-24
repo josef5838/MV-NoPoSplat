@@ -233,18 +233,23 @@ class BackboneFast3r(CroCoNet):
         image_ids.extend([1] * f2.shape[1])
         image_ids = torch.tensor(image_ids * B).reshape(B, -1).to(f1.device) #[B, 514]
 
-        x = torch.cat([f1, f2], dim=1) #[1, 514 1024]
+        # x = torch.cat([f1, f2], dim=1) #[1, 514 1024]
         pos = torch.cat([pos1, pos2], dim=1)#[1, 514, 2]
 
         final_output_nopo = [(f1, f2)]
 
-        final_output = [x]
+        # final_output = [x]
         # print("before decoder embedding: ", x)
         # project to decoder dim
-        x = self.decoder_embed(x) #[1, 514 1024] -》 [1, 514 768]
+        # x = self.decoder_embed(x) #[1, 514 1024] -》 [1, 514 768]
         # print("x decoder embede: ", x)
-        f1, f2 = x.chunk(2, dim=1) #f1/f2: [1, 257, 768]
+        # f1, f2 = x.chunk(2, dim=1) #f1/f2: [1, 257, 768]
+
+        f1 = self.decoder_embed(f1) #[1, 257, 768]
+        f2 = self.decoder_embed(f2)
         final_output_nopo.append((f1, f2))
+
+        x = torch.cat([f1, f2], dim=1) #[1, 514 1024]
 
         num_images = (torch.max(image_ids) + 1).cpu().item()
         image_idx_emb = self.image_idx_emb[:num_images]
@@ -255,50 +260,10 @@ class BackboneFast3r(CroCoNet):
         # print("before block: ",x)
         for blk in self.dec_blocks:
             x = blk(x, pos) # [1, 514, 768]
-            # print("x is : ", x)
-            final_output.append(x)
 
             f1, f2 = x.chunk(2, dim=1) #f1/f2: [1, 257, 768]
             final_output_nopo.append((f1, f2))
-        
-        # x0 = final_output[15]    # output of block 15
-        # # …and forward it *only* through block 16
-        # x16 = self.dec_blocks[15](x0, pos)
-        # activations = {}
-        # def save_act(name):
-        #     def hook(m, inp, out):
-        #         act = out if isinstance(out, torch.Tensor) else out[0]
-        #         activations[name] = {
-        #             "min": act.min().item(),
-        #             "max": act.max().item(),
-        #             "has_nan": torch.isnan(act).any().item()
-        #         }
-        #     return hook
-
-        # blk = self.dec_blocks[15]
-        # # Attach hooks to key sub‐layers
-        # # 1) Attention branch
-        # blk.norm1.register_forward_hook(save_act("norm1_out"))       # after LayerNorm
-        # blk.attn.register_forward_hook(save_act("attn_out"))         # after Attention
-
-        # # 2) Post-attention DropPath
-        # blk.drop_path.register_forward_hook(save_act("drop_path_attn"))
-
-        # # 3) MLP branch
-        # blk.norm2.register_forward_hook(save_act("norm2_out"))       # after second LayerNorm
-        # blk.mlp.fc1.register_forward_hook(save_act("mlp_fc1_out"))   # after first linear
-        # blk.mlp.act.register_forward_hook(save_act("mlp_act_out"))   # after activation
-        # blk.mlp.fc2.register_forward_hook(save_act("mlp_fc2_out"))   # after second linear
-        # blk.mlp.drop2.register_forward_hook(save_act("mlp_drop2"))   # after final dropout
-
-        # import pdb; pdb.set_trace()
-        # # Run the block once
-        # _ = blk(x0, pos)
-        # import json
-        # print(json.dumps(activations, indent=2))
-
-        
-
+    
         del final_output_nopo[1]  # duplicate with final_output[0]
         final_output_nopo[-1] = tuple(map(self.dec_norm, final_output_nopo[-1]))
         return zip(*final_output_nopo)

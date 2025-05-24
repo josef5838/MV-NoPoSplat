@@ -27,7 +27,7 @@ dataset:
   re10k:
     view_sampler:
       warm_up_steps: 9375
-      num_context_views: 3
+      num_context_views: 4
 
 optimizer:
   lr: 2e-4
@@ -36,7 +36,10 @@ optimizer:
 
 data_loader:
   train:
-    batch_size: 8
+    batch_size: 2
+    num_workers: 6
+  test:
+    num_workers: 4
 
 trainer:
   max_steps: 18751

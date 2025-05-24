@@ -159,12 +159,15 @@ class AsymmetricCroCoMulti(CroCoNet):
         final_output = [feat]  # before projection
         if extra_embed is not None:
             feat = torch.cat((feat, extra_embed), dim=-1)
-
+        print("during the decoder!!!!")
         # project to decoder dim
         f = rearrange(feat, "b v l c -> (b v) l c")
+        print("f shape is: ", f)
         f = self.decoder_embed(f)
+        print("after decoder embed f shape is: ", f)
         f = rearrange(f, "(b v) l c -> b v l c", b=b, v=v)
         final_output.append(f)
+        print("f shape is: ", f)
 
         def generate_ctx_views(x):
             b, v, l, c = x.shape
@@ -175,6 +178,8 @@ class AsymmetricCroCoMulti(CroCoNet):
             return ctx_views.contiguous()
 
         pos_ctx = generate_ctx_views(pose)
+        print("pos_ctx is: ", pos_ctx)
+        pri
         for blk1, blk2 in zip(self.dec_blocks, self.dec_blocks2):
             feat_current = final_output[-1]
             feat_current_ctx = generate_ctx_views(feat_current)
@@ -213,16 +218,22 @@ class AsymmetricCroCoMulti(CroCoNet):
         intrinsic_embedding_all = None
         if self.intrinsics_embed_loc == 'encoder' and (self.intrinsics_embed_type == 'token' or self.intrinsics_embed_type == 'linear'):
             intrinsic_embedding = self.intrinsic_encoder(context["intrinsics"].flatten(2))
-            intrinsic_embedding_all = rearrange(intrinsic_embedding, "b v c -> (b v) c").unsqueeze(1)
+            intrinsic_embedding_all = rearrange(intrinsic_embedding, "b v c -> (b v) c").unsqueeze(1) #(b v) 1024
 
         # step 1: encoder input images
         images_all = rearrange(images_all, "b v c h w -> (b v) c h w")
-        shape_all = torch.tensor(images_all.shape[-2:])[None].repeat(b*v, 1)
+        shape_all = torch.tensor(images_all.shape[-2:])[None].repeat(b*v, 1) #(b v) 2
 
+        print("before decoder********")
         feat, pose, _ = self._encode_image(images_all, shape_all, intrinsic_embedding_all)
+        print("feat shape is: ",feat.shape)
+        print("pose shape is: ",pose.shape)
 
         feat = rearrange(feat, "(b v) l c -> b v l c", b=b, v=v)
         pose = rearrange(pose, "(b v) l c -> b v l c", b=b, v=v)
+
+        print("feat shape is: ",feat.shape)
+        print("pose shape is: ",pose.shape)
 
         # step 2: decoder
         dec_feat = self._decoder(feat, pose)

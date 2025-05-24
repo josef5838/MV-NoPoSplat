@@ -131,7 +131,7 @@ def train(cfg_dict: DictConfig):
             ckpt_weights = checkpoint_filter_fn(ckpt_weights, encoder)
             missing_keys, unexpected_keys = encoder.load_state_dict(ckpt_weights, strict=False)
             # print("missing_keys: ", missing_keys)
-            print("unexpected_keys: ", unexpected_keys)
+            # print("unexpected_keys: ", unexpected_keys)
         elif 'state_dict' in ckpt_weights:
             ckpt_weights = ckpt_weights['state_dict']
             ckpt_weights = {k[8:]: v for k, v in ckpt_weights.items() if k.startswith('encoder.')}

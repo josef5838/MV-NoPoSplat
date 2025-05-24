@@ -175,6 +175,7 @@ cython_debug/
 table.tex
 /baselines
 /test/*
+sbatch_log/
 
 /pretrained_weights
 /pretrained_weights2
